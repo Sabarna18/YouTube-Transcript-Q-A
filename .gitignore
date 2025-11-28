@@ -1,0 +1,54 @@
+# --- Environment files ---
+.env
+.env.*
+app/.env
+
+# --- Python cache and build files ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pkl
+*.log
+
+# --- Jupyter Notebook files ---
+*.ipynb
+.ipynb_checkpoints/
+
+# other test files--
+*.docs
+*.pdf
+
+
+# --- Virtual environment ---
+venv/
+.env/
+.venv/
+env/
+ENV/
+myenv/
+.myenv
+
+# --- sample documents ----
+sample_docs/
+
+#--- persistent vector stores ---
+hf_Chroma_Store
+
+# --- System files ---
+.DS_Store
+Thumbs.db
+
+# --- IDE / Editor settings ---
+.vscode/
+.idea/
+*.swp
+
+# --- Project-specific ---
+# Ignore model weights, checkpoints, or datasets (optional)
+models/
+checkpoints/
+data/
+datasets/
+outputs/
+runs/
