@@ -1,9 +1,11 @@
 import streamlit as st
-import utils
 from store import Store
 from agents import Agent
+import utils
+import json
+from datetime import datetime
 
-# Page configuration
+# Page config
 st.set_page_config(
     page_title="YouTube Transcript Analyzer",
     page_icon="🎥",
@@ -11,603 +13,378 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-SYSTEM_PROMPT = """You are an advanced AI-powered News Research Analyst designed to perform 
-high-quality analysis on recent events, reports, and global news. Your role is 
-to read the user's query, gather contextual signals, understand the domain of 
-interest, and produce clear, accurate, well-structured insights.
-
-### OBJECTIVES
-1. Provide a well-reasoned, factual, and comprehensive analysis of the topic.
-2. Summarize major developments, key actors, and implications.
-3. Highlight trends, risks, and opportunities where relevant.
-4. Maintain high factual accuracy and avoid assumptions.
-5. Provide citations or source context if available.
-
-### OUTPUT STYLE
-- Professional and concise but highly informative.
-- Use clear sectioning such as:
-  - Executive Summary
-  - Key Facts / Background
-  - Latest Developments
-  - Expert Analysis
-  - Forecasts / What to Watch
-  - Conclusion
-- Avoid unnecessary storytelling.
-- Avoid hallucinations; do not fabricate data or events.
-- If information is insufficient, clearly state limitations.
-
-### RESPONSE REQUIREMENTS
-- Maintain an objective, unbiased tone.
-- Include bullet points for readability where useful.
-- Provide context that connects past events to present developments.
-- Where applicable, give recommendations or actionable insights.
-
-### USER QUERY
-The user will provide a topic or question. 
-Your task is to deliver a complete, research-grade answer that feels like a 
-professional intelligence briefing.
-Respond in the most accurate, structured, and reliable manner possible."""
-
-# Custom CSS for premium professional styling
+# Custom CSS for professional styling
 st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
     
-    * {
+    /* Main background - Professional dark theme */
+    .stApp {
+        background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #0a0e27 100%);
         font-family: 'Inter', sans-serif;
     }
     
-    .main {
-        padding: 1.5rem;
-        background: linear-gradient(135deg, #0a0e1a 0%, #1a1f35 50%, #0f1419 100%);
-        min-height: 100vh;
-    }
-    
-    /* Enhanced Button Styles */
-    .stButton>button {
-        width: 100%;
-        border-radius: 14px;
-        height: 3.5rem;
-        font-weight: 700;
-        font-size: 1.05rem;
-        letter-spacing: 0.8px;
-        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
-        color: white;
-        border: none;
-        box-shadow: 0 10px 30px rgba(99, 102, 241, 0.4);
-        position: relative;
-        overflow: hidden;
-        text-transform: uppercase;
-    }
-    
-    .stButton>button::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: -100%;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-        transition: left 0.6s;
-    }
-    
-    .stButton>button:hover::before {
-        left: 100%;
-    }
-    
-    .stButton>button:hover {
-        transform: translateY(-4px) scale(1.02);
-        box-shadow: 0 15px 40px rgba(99, 102, 241, 0.6);
-        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #c026d3 100%);
-    }
-    
-    .stButton>button:active {
-        transform: translateY(-2px) scale(0.98);
-    }
-    
-    /* Premium Header */
-    .header-container {
-        background: linear-gradient(135deg, #4c1d95 0%, #5b21b6 25%, #6d28d9 50%, #7c3aed 75%, #8b5cf6 100%);
-        padding: 4rem 3rem;
-        border-radius: 28px;
-        margin-bottom: 2.5rem;
-        box-shadow: 0 25px 70px rgba(124, 58, 237, 0.5);
-        position: relative;
-        overflow: hidden;
-        border: 2px solid rgba(255, 255, 255, 0.15);
-    }
-    
-    .header-container::before {
-        content: '';
-        position: absolute;
-        top: -50%;
-        right: -50%;
-        width: 200%;
-        height: 200%;
-        background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
-        animation: pulse 5s ease-in-out infinite;
-    }
-    
-    .header-container::after {
-        content: '';
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 4px;
-        background: linear-gradient(90deg, #6366f1, #8b5cf6, #d946ef, #ec4899);
-        box-shadow: 0 0 20px rgba(139, 92, 246, 0.8);
-    }
-    
-    @keyframes pulse {
-        0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.5; }
-        50% { transform: scale(1.15) rotate(180deg); opacity: 0.8; }
-    }
-    
-    .header-title {
-        color: #ffffff;
-        font-size: 3.8rem;
-        font-weight: 900;
-        margin: 0;
-        text-align: center;
-        text-shadow: 0 6px 16px rgba(0,0,0,0.4);
-        letter-spacing: -1.5px;
-        position: relative;
-        z-index: 1;
-        animation: fadeInDown 0.8s ease-out;
-    }
-    
-    @keyframes fadeInDown {
-        from {
-            opacity: 0;
-            transform: translateY(-30px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-    
-    .header-subtitle {
-        color: #e9d5ff;
-        font-size: 1.5rem;
-        text-align: center;
-        margin-top: 1rem;
-        font-weight: 500;
-        letter-spacing: 1px;
-        text-shadow: 0 3px 10px rgba(0,0,0,0.3);
-        position: relative;
-        z-index: 1;
-        animation: fadeInUp 0.8s ease-out 0.2s both;
-    }
-    
-    @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translateY(30px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-    
-    /* Enhanced Section Headers */
-    .section-header {
-        font-size: 1.8rem;
-        font-weight: 900;
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        margin-bottom: 1.8rem;
-        padding-bottom: 1rem;
-        border-bottom: 4px solid;
-        border-image: linear-gradient(90deg, #6366f1, #8b5cf6, #d946ef) 1;
-        letter-spacing: -0.5px;
-        position: relative;
-    }
-    
-    .section-header::after {
-        content: '';
-        position: absolute;
-        bottom: -4px;
-        left: 0;
-        width: 80px;
-        height: 4px;
-        background: linear-gradient(90deg, #6366f1, #8b5cf6);
-        animation: expandWidth 1s ease-out;
-    }
-    
-    @keyframes expandWidth {
-        from { width: 0; }
-        to { width: 80px; }
-    }
-    
-    /* Info Box Styles */
-    .info-box {
-        background: rgba(99, 102, 241, 0.12);
-        backdrop-filter: blur(16px);
-        border: 2px solid rgba(99, 102, 241, 0.35);
-        border-left: 6px solid #6366f1;
-        padding: 1.8rem;
-        border-radius: 18px;
-        margin: 1.2rem 0;
-        color: #e0e7ff;
-        font-weight: 600;
-        box-shadow: 0 10px 30px rgba(99, 102, 241, 0.25);
-        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    
-    .info-box:hover {
-        transform: translateY(-4px) translateX(4px);
-        box-shadow: 0 15px 40px rgba(99, 102, 241, 0.4);
-        border-left-width: 10px;
-        background: rgba(99, 102, 241, 0.18);
-    }
-    
-    /* Success Box */
-    .success-box {
-        background: rgba(34, 197, 94, 0.15);
-        backdrop-filter: blur(16px);
-        border: 2px solid rgba(34, 197, 94, 0.4);
-        border-left: 6px solid #22c55e;
-        padding: 2rem;
-        border-radius: 18px;
-        margin: 1.5rem 0;
-        box-shadow: 0 10px 30px rgba(34, 197, 94, 0.3);
-        animation: slideInLeft 0.6s ease-out;
-    }
-    
-    @keyframes slideInLeft {
-        from {
-            opacity: 0;
-            transform: translateX(-40px);
-        }
-        to {
-            opacity: 1;
-            transform: translateX(0);
-        }
-    }
-    
-    .success-box h4 {
-        color: #86efac;
-        font-weight: 900;
-        font-size: 1.4rem;
-        margin: 0 0 0.8rem 0;
-        letter-spacing: -0.5px;
-    }
-    
-    .success-box p {
-        color: #bbf7d0;
-        font-weight: 600;
-        font-size: 1.08rem;
-        margin: 0;
-        line-height: 1.7;
-    }
-    
-    /* Enhanced Input Styles */
-    .stTextInput>div>div>input {
-        border-radius: 14px;
-        border: 2px solid rgba(99, 102, 241, 0.3);
-        padding: 1.2rem 1.5rem;
-        font-size: 1.08rem;
-        background: rgba(30, 41, 59, 0.7);
-        backdrop-filter: blur(16px);
-        color: #f1f5f9;
-        font-weight: 500;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    }
-    
-    .stTextInput>div>div>input:focus {
-        border-color: #8b5cf6;
-        background: rgba(30, 41, 59, 0.9);
-        box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.25), 0 8px 24px rgba(139, 92, 246, 0.3);
-        transform: translateY(-2px);
-    }
-    
-    .stTextInput>div>div>input::placeholder {
-        color: #94a3b8;
-        font-weight: 500;
-    }
-    
-    /* Select Box */
-    .stSelectbox>div>div>div {
-        border-radius: 14px;
-        background: rgba(30, 41, 59, 0.7);
-        backdrop-filter: blur(16px);
-        color: #f1f5f9;
-        border: 2px solid rgba(99, 102, 241, 0.3);
-        font-weight: 600;
-        padding: 0.5rem;
-        transition: all 0.3s ease;
-    }
-    
-    .stSelectbox>div>div>div:hover {
-        border-color: #8b5cf6;
-        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
-    }
-    
-    /* Answer Box */
-    .answer-box {
-        background: rgba(30, 41, 59, 0.85);
-        backdrop-filter: blur(20px);
+    /* Main header */
+    .main-header {
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
         padding: 2.5rem;
-        border-radius: 20px;
-        box-shadow: 0 15px 50px rgba(0,0,0,0.5);
-        border: 2px solid rgba(99, 102, 241, 0.35);
-        border-left: 6px solid #6366f1;
+        border-radius: 16px;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        border: 1px solid rgba(99, 102, 241, 0.2);
+    }
+    
+    .main-header h1 {
         color: #f1f5f9;
-        font-size: 1.12rem;
-        line-height: 1.9;
-        font-weight: 500;
-        animation: fadeInScale 0.6s ease-out;
+        font-size: 2.5rem;
+        margin: 0;
+        font-weight: 800;
+        letter-spacing: -0.5px;
     }
     
-    @keyframes fadeInScale {
-        from { opacity: 0; transform: scale(0.95); }
-        to { opacity: 1; transform: scale(1); }
-    }
-    
-    /* Query History Styles */
-    .history-container {
-        background: rgba(30, 41, 59, 0.7);
-        backdrop-filter: blur(20px);
-        border-radius: 20px;
-        padding: 2rem;
-        border: 2px solid rgba(99, 102, 241, 0.3);
-        box-shadow: 0 12px 40px rgba(0,0,0,0.4);
-        margin-top: 2rem;
-    }
-    
-    .history-item {
-        background: rgba(51, 65, 85, 0.6);
-        backdrop-filter: blur(12px);
-        border: 2px solid rgba(99, 102, 241, 0.25);
-        border-left: 5px solid #8b5cf6;
-        border-radius: 14px;
-        padding: 1.5rem;
-        margin-bottom: 1.2rem;
-        transition: all 0.3s ease;
-        cursor: pointer;
-    }
-    
-    .history-item:hover {
-        background: rgba(51, 65, 85, 0.8);
-        border-left-width: 8px;
-        transform: translateX(6px);
-        box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
-    }
-    
-    .history-question {
-        color: #c7d2fe;
-        font-weight: 700;
+    .main-header p {
+        color: #94a3b8;
+        margin: 0.75rem 0 0 0;
         font-size: 1.1rem;
-        margin-bottom: 0.8rem;
+        font-weight: 500;
+    }
+    
+    /* Info banner for user guidance */
+    .info-banner {
+        background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+        color: #e0e7ff;
+        padding: 1.25rem;
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+        border-left: 4px solid #3b82f6;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+    }
+    
+    .info-banner h4 {
+        color: #dbeafe;
+        margin: 0 0 0.5rem 0;
+        font-size: 1.1rem;
+        font-weight: 700;
+    }
+    
+    .info-banner ul {
+        margin: 0.5rem 0 0 1.25rem;
+        padding: 0;
+        color: #bfdbfe;
+    }
+    
+    .info-banner li {
+        margin: 0.4rem 0;
+        font-size: 0.95rem;
+    }
+    
+    /* Card containers */
+    .card-container {
+        background: rgba(30, 41, 59, 0.7);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        border: 1px solid rgba(99, 102, 241, 0.2);
+        margin-bottom: 1.5rem;
+        transition: all 0.3s ease;
+    }
+    
+    .card-container:hover {
+        border-color: rgba(99, 102, 241, 0.4);
+        box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    }
+    
+    /* Section headers */
+    .section-header {
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: #f1f5f9 !important;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .section-icon {
+        width: 36px;
+        height: 36px;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+    
+    /* Fix for all Streamlit labels - CRITICAL */
+    label, .stTextInput label, .stTextArea label, .stSelectbox label {
+        color: #e2e8f0 !important;
+        font-weight: 700 !important;
+        font-size: 1rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+    
+    /* Input fields */
+    .stTextInput > div > div > input,
+    .stTextArea > div > div > textarea {
+        border-radius: 12px;
+        border: 2px solid #475569;
+        background: #1e293b;
+        font-size: 1rem;
+        padding: 0.875rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        color: #f1f5f9 !important;
+    }
+    
+    /* Selectbox - FIXED STYLING */
+    .stSelectbox > div > div {
+        background: #1e293b;
+        border-radius: 12px;
+        border: 2px solid #475569;
+    }
+    
+    .stSelectbox > div > div > select,
+    .stSelectbox > div > div > div {
+        background: #1e293b !important;
+        color: #f1f5f9 !important;
+        border: none !important;
+        font-weight: 600 !important;
+        font-size: 1rem !important;
+        
+    }
+    
+    /* Selectbox dropdown options */
+    .stSelectbox [data-baseweb="select"] {
+        background: #1e293b !important;
+    }
+    
+    .stSelectbox [data-baseweb="select"] > div {
+        background: #1e293b !important;
+        border-color: #475569 !important;
+    }
+    
+    /* Placeholder text */
+    .stTextInput > div > div > input::placeholder,
+    .stTextArea > div > div > textarea::placeholder {
+        color: #64748b !important;
+        font-weight: 400;
+    }
+    
+    .stTextInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus,
+    .stSelectbox > div > div:focus-within {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+    
+    /* Buttons */
+    .stButton > button {
+        width: 100%;
+        border-radius: 12px;
+        font-weight: 700;
+        padding: 0.875rem 2rem;
+        transition: all 0.3s ease;
+        border: none;
+        font-size: 1.05rem;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        color: white;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(99, 102, 241, 0.5);
+    }
+    
+    .stButton > button:active {
+        transform: translateY(0);
+    }
+    
+    .stButton > button:disabled {
+        background: linear-gradient(135deg, #475569 0%, #334155 100%);
+        box-shadow: none;
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+    
+    /* Success box */
+    .success-box {
+        background: linear-gradient(135deg, #065f46 0%, #047857 100%);
+        color: #d1fae5;
+        padding: 1rem;
+        border-radius: 12px;
+        margin: 1rem 0;
+        font-weight: 600;
+        font-size: 1rem;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    
+    .error-box {
+        background: linear-gradient(135deg, #991b1b 0%, #b91c1c 100%);
+        color: #fecaca;
+        padding: 1rem;
+        border-radius: 12px;
+        margin: 1rem 0;
+        font-weight: 600;
+        font-size: 1rem;
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    
+    /* Info box */
+    .info-box {
+        background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+        color: #dbeafe;
+        padding: 1rem;
+        border-radius: 12px;
+        margin: 1rem 0;
+        font-weight: 500;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+    
+    /* Answer box */
+    .answer-box {
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        border: 2px solid #6366f1;
+        padding: 1.75rem;
+        border-radius: 16px;
+        margin: 1.5rem 0;
+        box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
+    }
+    
+    .answer-box h3 {
+        color: #a5b4fc !important;
+        margin-top: 0;
+        font-weight: 800;
+        font-size: 1.4rem;
         display: flex;
         align-items: center;
         gap: 0.5rem;
     }
     
-    .history-answer {
-        color: #cbd5e1;
-        font-size: 1rem;
-        line-height: 1.7;
+    .answer-box p {
+        color: #e2e8f0 !important;
+        line-height: 1.8;
+        font-size: 1.05rem;
         font-weight: 500;
-        padding-left: 1.8rem;
-        border-left: 3px solid rgba(99, 102, 241, 0.3);
-        margin-top: 0.8rem;
+    }
+    
+    /* History card */
+    .history-card {
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        border: 1px solid #475569;
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    
+    .history-card:hover {
+        border-color: #6366f1;
+        box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
+        transform: translateY(-2px);
     }
     
     .history-timestamp {
-        color: #94a3b8;
-        font-size: 0.88rem;
+        color: #94a3b8 !important;
+        font-size: 0.8rem;
+        margin-bottom: 0.75rem;
         font-weight: 600;
-        margin-top: 0.8rem;
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-    }
-    
-    .clear-history-btn {
-        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-        color: white;
-        border: none;
-        padding: 0.8rem 1.5rem;
-        border-radius: 10px;
-        font-weight: 700;
-        font-size: 0.95rem;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
     
-    .clear-history-btn:hover {
-        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-        transform: translateY(-2px);
-        box-shadow: 0 8px 28px rgba(239, 68, 68, 0.6);
-    }
-    
-    /* Sidebar Styles */
-    div[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-        border-right: 3px solid rgba(99, 102, 241, 0.3);
-    }
-    
-    div[data-testid="stSidebar"] h3 {
-        color: #c7d2fe;
-        font-weight: 900;
-        font-size: 1.4rem;
-        letter-spacing: -0.5px;
-    }
-    
-    div[data-testid="stSidebar"] h4 {
-        color: #ddd6fe;
-        font-weight: 800;
-        font-size: 1.1rem;
-    }
-    
-    .sidebar-info {
-        background: rgba(30, 41, 59, 0.7);
-        backdrop-filter: blur(16px);
-        padding: 1.5rem;
-        border-radius: 14px;
-        border: 2px solid rgba(99, 102, 241, 0.3);
-        color: #cbd5e1;
-        font-size: 0.98rem;
-        line-height: 1.8;
-        font-weight: 500;
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-    }
-    
-    .sidebar-info b {
-        color: #c7d2fe;
-        font-weight: 800;
-    }
-    
-    /* Status Badges */
-    .status-badge {
-        display: inline-block;
-        padding: 0.6rem 1.3rem;
-        border-radius: 25px;
-        font-weight: 800;
-        font-size: 0.95rem;
-        letter-spacing: 0.8px;
-        text-transform: uppercase;
-        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
-        transition: all 0.3s ease;
-    }
-    
-    .status-badge:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-    }
-    
-    .status-success {
-        background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-        color: white;
-        border: 2px solid rgba(34, 197, 94, 0.5);
-    }
-    
-    .status-pending {
-        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-        color: white;
-        border: 2px solid rgba(245, 158, 11, 0.5);
-    }
-    
-    /* Card Container */
-    .card {
-        background: rgba(30, 41, 59, 0.7);
-        backdrop-filter: blur(20px);
-        border-radius: 18px;
-        padding: 2rem;
-        border: 2px solid rgba(99, 102, 241, 0.25);
-        box-shadow: 0 10px 30px rgba(0,0,0,0.4);
-        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    
-    .card:hover {
-        transform: translateY(-6px);
-        box-shadow: 0 15px 45px rgba(0,0,0,0.5);
-        border-color: rgba(99, 102, 241, 0.5);
-    }
-    
-    /* Statistics Display */
-    .stat-container {
-        background: rgba(51, 65, 85, 0.6);
-        backdrop-filter: blur(12px);
-        border-radius: 16px;
-        padding: 1.5rem;
-        border: 2px solid rgba(99, 102, 241, 0.3);
-        text-align: center;
-        transition: all 0.3s ease;
-    }
-    
-    .stat-container:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 10px 30px rgba(99, 102, 241, 0.3);
-    }
-    
-    .stat-number {
-        font-size: 2.5rem;
-        font-weight: 900;
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-    }
-    
-    .stat-label {
-        color: #cbd5e1;
+    .history-question {
+        color: #a5b4fc !important;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
         font-size: 1rem;
-        font-weight: 600;
-        margin-top: 0.5rem;
+        line-height: 1.5;
+    }
+    
+    .history-answer {
+        color: #cbd5e1 !important;
+        font-size: 0.95rem;
+        line-height: 1.6;
+        margin-bottom: 0.75rem;
+        font-weight: 400;
+    }
+    
+    .badge {
+        display: inline-block;
+        padding: 0.35rem 0.875rem;
+        border-radius: 8px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        margin-right: 0.5rem;
+        margin-top: 0.75rem;
         text-transform: uppercase;
-        letter-spacing: 1px;
+        letter-spacing: 0.5px;
+    }
+    
+    .badge-indigo {
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+        color: white;
+    }
+    
+    .badge-purple {
+        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+        color: white;
+    }
+    
+    /* Progress bar */
+    .stProgress > div > div > div > div {
+        background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%);
+    }
+    
+    /* Download button */
+    .stDownloadButton > button {
+        background: linear-gradient(135deg, #059669 0%, #047857 100%);
+        border: none;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+    
+    .stDownloadButton > button:hover {
+        background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+        box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+    }
+    
+    /* Divider */
+    hr {
+        border: none;
+        height: 1px;
+        background: linear-gradient(90deg, transparent 0%, #475569 50%, transparent 100%);
+        margin: 2rem 0;
     }
     
     /* Footer */
     .footer {
         text-align: center;
         color: #94a3b8;
-        font-size: 1.05rem;
-        padding: 2.5rem;
-        font-weight: 600;
-        background: rgba(30, 41, 59, 0.5);
-        backdrop-filter: blur(16px);
-        border-radius: 20px;
-        border: 2px solid rgba(99, 102, 241, 0.25);
+        padding: 1.5rem;
+        font-weight: 500;
+        font-size: 0.95rem;
         margin-top: 3rem;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-    }
-    
-    .footer p {
-        margin: 0;
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        font-weight: 900;
-        font-size: 1.1rem;
-    }
-    
-    /* Divider */
-    hr {
-        border: none;
-        border-top: 2px solid rgba(99, 102, 241, 0.25);
-        margin: 2rem 0;
-        box-shadow: 0 1px 3px rgba(99, 102, 241, 0.1);
-    }
-    
-    /* Spinner */
-    .stSpinner > div {
-        border-top-color: #8b5cf6 !important;
-    }
-    
-    /* Progress Bar */
-    .stProgress > div > div {
-        background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
-    }
-    
-    /* Expander */
-    .streamlit-expanderHeader {
-        background: rgba(51, 65, 85, 0.6);
+        background: rgba(30, 41, 59, 0.5);
         border-radius: 12px;
-        font-weight: 700;
-        color: #c7d2fe;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(99, 102, 241, 0.2);
     }
     
     /* Scrollbar */
     ::-webkit-scrollbar {
-        width: 12px;
+        width: 10px;
     }
     
     ::-webkit-scrollbar-track {
-        background: rgba(15, 23, 42, 0.8);
+        background: rgba(30, 41, 59, 0.5);
+        border-radius: 10px;
     }
     
     ::-webkit-scrollbar-thumb {
@@ -618,211 +395,263 @@ st.markdown("""
     ::-webkit-scrollbar-thumb:hover {
         background: linear-gradient(180deg, #4f46e5 0%, #7c3aed 100%);
     }
-    </style>
-""", unsafe_allow_html=True)
-
-# Header
-st.markdown("""
-    <div class="header-container">
-        <h1 class="header-title">🎥 YouTube Transcript Analyzer</h1>
-        <p class="header-subtitle">AI-Powered Video Content Analysis with RAG Technology</p>
-    </div>
+    
+    /* Empty state text */
+    .empty-state {
+        text-align: center;
+        padding: 2.5rem 1rem;
+        color: #64748b;
+    }
+    
+    .empty-state-icon {
+        font-size: 3.5rem;
+        margin-bottom: 1rem;
+        opacity: 0.6;
+    }
+</style>
 """, unsafe_allow_html=True)
 
 # Initialize session state
-if 'processed' not in st.session_state:
-    st.session_state.processed = False
+if 'video_processed' not in st.session_state:
+    st.session_state.video_processed = False
+if 'query_history' not in st.session_state:
+    st.session_state.query_history = []
 if 'vectorstore' not in st.session_state:
     st.session_state.vectorstore = None
 if 'retriever' not in st.session_state:
     st.session_state.retriever = None
+if 'processed_url' not in st.session_state:
+    st.session_state.processed_url = ""
+if 'current_embedding' not in st.session_state:
+    st.session_state.current_embedding = ""
 
-# Sidebar configuration
-with st.sidebar:
-    st.markdown("### ⚙️ Configuration")
-    st.markdown("---")
-    
-    st.markdown("#### 🤖 Embedding Model")
-    options = {
-        "Google Gemini": "models/gemini-embedding-001",
-        "HuggingFace MPNet": "sentence-transformers/all-mpnet-base-v2"
-    }
-    
-    option = st.selectbox(
-        "Choose your embedding model:",
-        list(options.keys()),
-        help="Select the embedding model for vector representation"
-    )
-    embedding_model = options[option]
-    
-    st.markdown("---")
-    st.markdown("#### 📊 System Status")
-    if st.session_state.processed:
-        st.markdown('<span class="status-badge status-success">✅ Video Processed</span>', unsafe_allow_html=True)
-    else:
-        st.markdown('<span class="status-badge status-pending">⏳ Awaiting Input</span>', unsafe_allow_html=True)
-    
-    st.markdown("---")
-    st.markdown("""
-        <div class="sidebar-info">
-        <b>🚀 How it works:</b><br><br>
-        1️⃣ Enter YouTube URL<br>
-        2️⃣ Select embedding model<br>
-        3️⃣ Process the video<br>
-        4️⃣ Ask questions about content
-        </div>
-    """, unsafe_allow_html=True)
+# Header
+st.markdown("""
+<div class="main-header">
+    <h1>🎥 YouTube Transcript Analyzer</h1>
+    <p>AI-Powered Video Q&A with RAG Technology</p>
+</div>
+""", unsafe_allow_html=True)
 
-# Main content area
+# User guide banner
+st.markdown("""
+<div class="info-banner">
+    <h4>📖 How to Use This Application</h4>
+    <ul>
+        <li><strong>Step 1:</strong> Paste a YouTube video URL in the input field below</li>
+        <li><strong>Step 2:</strong> Select an embedding model (Google or Hugging Face)</li>
+        <li><strong>Step 3:</strong> Click "Process Video" to analyze the transcript</li>
+        <li><strong>Step 4:</strong> Ask questions about the video content</li>
+        <li><strong>Note:</strong> Processing may take 30-60 seconds depending on video length</li>
+    </ul>
+</div>
+""", unsafe_allow_html=True)
+
+# Create two columns
 col1, col2 = st.columns([2, 1])
 
 with col1:
-    st.markdown('<p class="section-header">📹 Video Input</p>', unsafe_allow_html=True)
+    # Process Video Section
+    st.markdown('<div class="card-container">', unsafe_allow_html=True)
+    st.markdown('<div class="section-header"><div class="section-icon">🎬</div>Process Video</div>', unsafe_allow_html=True)
+    
     url = st.text_input(
         "YouTube URL",
         placeholder="https://www.youtube.com/watch?v=...",
-        label_visibility="collapsed"
+        key="url_input",
+        disabled=st.session_state.get('processing', False),
+        label_visibility="visible"
     )
     
-    process_btn = st.button("🚀 Process Video", type="primary", use_container_width=True)
-
-with col2:
-    st.markdown('<p class="section-header">ℹ️ Quick Tips</p>', unsafe_allow_html=True)
-    st.markdown("""
-        <div class="info-box">
-        <b style="font-size: 1.05rem;">✨ Supported URLs:</b><br><br>
-        <span>🔗 Standard YouTube links<br>
-        ⚡ Shortened youtu.be links<br>
-        ⏱️ Videos with timestamps</span>
-        </div>
-    """, unsafe_allow_html=True)
-
-# Initialize store and agent
-store = Store()
-agent = Agent()
-
-# Process video
-if process_btn:
-    if not url:
-        st.error("⚠️ Please enter a valid YouTube URL")
-    else:
-        with st.spinner("🔄 Processing video transcript..."):
+    options = {
+        "Google": "models/gemini-embedding-001",
+        "Hugging Face": "sentence-transformers/all-mpnet-base-v2"
+    }
+    
+    embedding_model = st.selectbox(
+        "Embedding Model",
+        list(options.keys()),
+        key="embedding_select",
+        disabled=st.session_state.get('processing', False),
+        help="Choose the AI model for text embeddings"
+    )
+    
+    if st.button("🎥 Process Video", key="process_btn", type="primary"):
+        if not url.strip():
+            st.markdown('<div class="error-box">⚠️ Please enter a YouTube URL</div>', unsafe_allow_html=True)
+        else:
+            st.session_state.processing = True
+            
+            # Progress bar
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
             try:
-                # Progress tracking
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                
-                status_text.text("🎬 Extracting transcript...")
+                # Step 1: Extract transcript
+                status_text.markdown("🔄 Fetching video transcript...")
                 progress_bar.progress(20)
                 transcript = utils.extract_transcript(url)
                 
-                status_text.text("🤖 Initializing models...")
+                # Step 2: Create documents
+                status_text.markdown("📄 Creating document chunks...")
                 progress_bar.progress(40)
-                groq_llm = agent.groq_model
-                gemini_llm = agent.google_llm
-                hf_embedding = store.hf_embedding
-                google_embedding = store.google_embedding
-                
-                hf_directory = "hf_vectorstore"
-                google_directory = "google_vectorstore"
-                
-                status_text.text("📄 Creating document chunks...")
-                progress_bar.progress(60)
                 document = utils.create_Documents(transcript)
+                
+                # Step 3: Split documents
+                status_text.markdown("✂️ Splitting documents...")
+                progress_bar.progress(60)
                 chunks = utils.split_documents(document)
                 
-                status_text.text("🔮 Building vector store...")
+                # Step 4: Create embeddings and vector store
+                status_text.markdown("🧠 Generating embeddings and building vector database...")
                 progress_bar.progress(80)
-                if embedding_model == "models/gemini-embedding-001":
-                    vectorstore = store.create_vector_store(
-                        documents=chunks,
-                        embeddings=google_embedding,
-                        directory=google_directory
-                    )
-                else:
-                    vectorstore = store.create_vector_store(
-                        documents=chunks,
-                        embeddings=hf_embedding,
-                        directory=hf_directory
-                    )
+                store = Store(embedding_model=options[embedding_model])
+                vectorstore = store.create_vector_db(documents=chunks)
                 
-                status_text.text("⚡ Finalizing retriever...")
+                # Step 5: Create retriever
+                status_text.markdown("🔍 Initializing retriever...")
                 progress_bar.progress(100)
                 retriever = store.create_retriever(vectorstore=vectorstore)
                 
-                # Store in session state
+                # Save to session state
                 st.session_state.vectorstore = vectorstore
                 st.session_state.retriever = retriever
-                st.session_state.processed = True
+                st.session_state.video_processed = True
+                st.session_state.processed_url = url
+                st.session_state.current_embedding = embedding_model
                 
                 # Clear progress indicators
                 progress_bar.empty()
                 status_text.empty()
                 
-                st.markdown("""
-                    <div class="success-box">
-                        <h4>✅ Processing Complete!</h4>
-                        <p>
-                        Your video has been successfully analyzed and indexed. You can now ask questions about the content.
-                        </p>
-                    </div>
-                """, unsafe_allow_html=True)
+                st.markdown('<div class="success-box">✅ Video processed successfully! You can now ask questions about the content.</div>', unsafe_allow_html=True)
+                
                 
             except Exception as e:
-                st.error(f"❌ Error processing video: {str(e)}")
-
-# Question-answering section
-st.markdown("---")
-st.markdown('<p class="section-header">💬 Ask Questions</p>', unsafe_allow_html=True)
-
-if st.session_state.processed:
-    col1, col2 = st.columns([4, 1])
+                st.markdown(f'<div class="error-box">❌ Error: {str(e)}</div>', unsafe_allow_html=True)
+            finally:
+                st.session_state.processing = False
     
-    with col1:
-        question = st.text_input(
-            "Your Question",
-            placeholder="What is this video about?",
-            label_visibility="collapsed",
-            key="question_input"
-        )
+    # Show processed video info
+    if st.session_state.video_processed:
+        st.markdown(f'<div class="info-box">✅ <strong>Processed Video:</strong> {st.session_state.processed_url[:50]}... | <strong>Model:</strong> {st.session_state.current_embedding}</div>', unsafe_allow_html=True)
     
-    with col2:
-        qs_btn = st.button("🔍 Ask", type="primary", use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
     
-    if qs_btn:
-        if not question:
-            st.warning("⚠️ Please enter a question")
+    st.markdown("<hr>", unsafe_allow_html=True)
+    
+    # Ask Question Section
+    st.markdown('<div class="card-container">', unsafe_allow_html=True)
+    st.markdown('<div class="section-header"><div class="section-icon">💬</div>Ask Question</div>', unsafe_allow_html=True)
+    
+    question = st.text_area(
+        "Your Question",
+        placeholder="What is this video about? What are the key takeaways?",
+        height=140,
+        key="question_input",
+        disabled=not st.session_state.video_processed or st.session_state.get('querying', False),
+        help="Ask any question about the video content"
+    )
+    
+    if st.button("🚀 Ask Question", key="ask_btn", type="primary", disabled=not st.session_state.video_processed):
+        if not question.strip():
+            st.markdown('<div class="error-box">⚠️ Please enter a question</div>', unsafe_allow_html=True)
         else:
-            with st.spinner("🤔 Generating answer..."):
+            st.session_state.querying = True
+            
+            with st.spinner("🤔 Analyzing video content and generating answer..."):
                 try:
-                    enhanced_query = f"{SYSTEM_PROMPT}\n\n### USER QUERY:\n{question}\n\nBased on the provided sources, deliver a comprehensive intelligence briefing."
+                    agent = Agent()
+                    model = agent.groq_model
+                    
                     answer = agent.generate_answer(
                         retriever=st.session_state.retriever,
-                        model=agent.groq_model,
-                        question=enhanced_query
+                        model=model,
+                        question=question
                     )
                     
-                    st.markdown("### 📝 Answer")
+                    # Display answer
                     st.markdown(f"""
-                        <div class='answer-box'>
-                        {answer}
-                        </div>
+                    <div class="answer-box">
+                        <h3>💡 Answer:</h3>
+                        <p>{answer}</p>
+                    </div>
                     """, unsafe_allow_html=True)
                     
+                    # Add to history
+                    history_entry = {
+                        'id': len(st.session_state.query_history),
+                        'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        'video_url': st.session_state.processed_url,
+                        'embedding_model': st.session_state.current_embedding,
+                        'question': question,
+                        'answer': answer,
+                        'chunk_size': '512 tokens'
+                    }
+                    st.session_state.query_history.insert(0, history_entry)
+                    
+                    st.markdown('<div class="success-box">✅ Question answered successfully!</div>', unsafe_allow_html=True)
+                    
                 except Exception as e:
-                    st.error(f"❌ Error generating answer: {str(e)}")
-else:
-    st.markdown("""
-        <div class="info-box">
-        <b style="font-size: 1.1rem;">👆 Getting Started</b><br><br>
-        <span>Please process a video first before asking questions. Enter a YouTube URL above and click the Process Video button.</span>
+                    st.markdown(f'<div class="error-box">❌ Error: {str(e)}</div>', unsafe_allow_html=True)
+                finally:
+                    st.session_state.querying = False
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with col2:
+    # Query History Section
+    st.markdown('<div class="card-container">', unsafe_allow_html=True)
+    st.markdown('<div class="section-header"><div class="section-icon">📜</div>Query History</div>', unsafe_allow_html=True)
+    
+    if st.session_state.query_history:
+        # Action buttons
+        col_export, col_clear = st.columns(2)
+        with col_export:
+            json_data = json.dumps(st.session_state.query_history, indent=2)
+            st.download_button(
+                label="📥 Export",
+                data=json_data,
+                file_name=f"query_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                mime="application/json",
+                key="download_json",
+                use_container_width=True
+            )
+        with col_clear:
+            if st.button("🗑️ Clear", key="clear_btn", use_container_width=True):
+                st.session_state.query_history = []
+                st.rerun()
+        
+        st.markdown("<hr>", unsafe_allow_html=True)
+        
+        # Display history
+        for entry in st.session_state.query_history:
+            st.markdown(f"""
+            <div class="history-card">
+                <div class="history-timestamp">🕒 {entry['timestamp']}</div>
+                <div class="history-question">Q: {entry['question'][:100]}{"..." if len(entry['question']) > 100 else ""}</div>
+                <div class="history-answer">A: {entry['answer'][:150]}{"..." if len(entry['answer']) > 150 else ""}</div>
+                <div>
+                    <span class="badge badge-indigo">{entry['embedding_model']}</span>
+                    <span class="badge badge-purple">{entry['chunk_size']}</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div class="empty-state">
+            <div class="empty-state-icon">📭</div>
+            <p style="font-size: 1rem; font-weight: 600; color: #64748b;">No queries yet</p>
+            <p style="font-size: 0.9rem; color: #475569;">Process a video and ask questions to see history here</p>
         </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Footer
-st.markdown("---")
 st.markdown("""
-    <div class='footer'>
-        <p>⚡ Powered by RAG Technology | Built with Streamlit 🚀</p>
-    </div>
+<div class="footer">
+    Built with ❤️ using Streamlit, LangChain, and RAG Technology<br>
+    <span style="font-size: 0.85rem; opacity: 0.7;">Powered by AI • Designed for Excellence</span>
+</div>
 """, unsafe_allow_html=True)
